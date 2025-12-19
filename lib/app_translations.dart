@@ -35,6 +35,7 @@ class AppTranslations {
       'minutes': 'm',
       'hours': 'h',
       'days': 'd',
+      'settings': 'Settings',
     },
     'ar': {
       'app_title': 'LISTO',
@@ -143,6 +144,7 @@ class AppTranslations {
       'minutes': 'm',
       'hours': 'h',
       'days': 'd',
+      'settings': 'Configuración',
     },
     'de': {
       'app_title': 'LISTO',

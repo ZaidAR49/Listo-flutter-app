@@ -8,8 +8,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:my_app/app_translations.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:my_app/ad_service.dart';
+import 'package:my_app/settings_page.dart';
+import 'package:my_app/about_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math';
+
+// Toggle this to TRUE to allow users to turn off ads.
+// Set to FALSE to make ads mandatory (hides the toggle).
+const bool canRemoveAds = true; 
 
 Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -32,7 +38,9 @@ class ZarMemoryApp extends StatefulWidget {
 class _ZarMemoryAppState extends State<ZarMemoryApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale _locale = const Locale('en');
+  // If canRemoveAds is false, force ads to be shown (true).
   bool _showAds = true;
+
 
   void _toggleTheme() {
     setState(() {
@@ -253,7 +261,16 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
             _isBannerAdLoaded = true;
           });
         }
-      }
+      },
+      onRetryWithTestId: () {
+        if (mounted) {
+           setState(() {
+              _isBannerAdLoaded = false;
+              _bannerAd = null;
+           });
+           _loadBannerAd(); // Retry with the new Test ID
+        }
+      },
     );
     _bannerAd?.load();
   }
@@ -636,6 +653,13 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
         : _memories.where((m) => m.category == _selectedCategoryName).toList();
 
     return Scaffold(
+      bottomNavigationBar: (_isBannerAdLoaded && widget.showAds && _bannerAd != null)
+          ? SizedBox(
+              height: _bannerAd!.size.height.toDouble(),
+              width: _bannerAd!.size.width.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            )
+          : null,
       appBar: AppBar(
         title: Image.asset(
           'assets/logo.png',
@@ -717,39 +741,45 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       _showAddCategoryDialog();
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: Text(tr('about')),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showAppAboutDialog();
-                    },
-                  ),
+
                 ],
               ),
             ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.language),
-              title: Text(tr('language')),
-              trailing: Text(_getLanguageName(widget.currentLocale.languageCode), style: const TextStyle(fontWeight: FontWeight.bold)),
+              leading: const Icon(Icons.settings_outlined),
+              title: Text(tr('settings')),
               onTap: () {
-                _showLanguageDialog();
+                 Navigator.pop(context);
+                 Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsPage(
+                      isDarkMode: widget.isDarkMode,
+                      onToggleTheme: widget.onToggleTheme,
+                      currentLocale: widget.currentLocale,
+                      onToggleLanguage: widget.onToggleLanguage,
+                      showAds: widget.showAds,
+                      onToggleAds: widget.onToggleAds,
+                      canRemoveAds: canRemoveAds,
+                    ),
+                  ),
+                );
               },
             ),
-            SwitchListTile(
-              title: Text(tr('dark_mode')),
-              secondary: Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
-              value: widget.isDarkMode,
-              onChanged: (val) => widget.onToggleTheme(),
-            ),
-            SwitchListTile(
-              title: const Text('Show Ads'),
-              secondary: const Icon(Icons.ad_units),
-              value: widget.showAds,
-              onChanged: (val) {
-                widget.onToggleAds(val);
-                Navigator.pop(context); // Close drawer to reflect changes
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(tr('about')),
+              onTap: () {
+                 Navigator.pop(context);
+                 Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AboutPage(
+                      currentLocale: widget.currentLocale,
+                    ),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 16),
@@ -884,13 +914,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                     );
                   },
                 ),
-      bottomNavigationBar: (widget.showAds && _isBannerAdLoaded && _bannerAd != null)
-          ? SizedBox(
-              height: _bannerAd!.size.height.toDouble(),
-              width: _bannerAd!.size.width.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            )
-          : null,
+
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showMemoryDialog(),
         child: const Icon(Icons.add),
