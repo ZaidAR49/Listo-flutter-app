@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:my_app/memory_model.dart';
 import 'package:my_app/storage_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:my_app/app_translations.dart';
 import 'dart:math';
 
 void main() {
@@ -23,10 +25,17 @@ class ZarMemoryApp extends StatefulWidget {
 
 class _ZarMemoryAppState extends State<ZarMemoryApp> {
   ThemeMode _themeMode = ThemeMode.system;
+  Locale _locale = const Locale('en');
 
   void _toggleTheme() {
     setState(() {
       _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
+
+  void _changeLanguage(Locale locale) {
+    setState(() {
+      _locale = locale;
     });
   }
 
@@ -36,6 +45,19 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
       title: 'LISTO',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
+      locale: _locale,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''),
+        Locale('ar', ''),
+        Locale('fr', ''),
+        Locale('es', ''),
+        Locale('de', ''),
+      ],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -139,6 +161,8 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
       home: MemoryHomePage(
         onToggleTheme: _toggleTheme,
         isDarkMode: _themeMode == ThemeMode.dark,
+        onToggleLanguage: _changeLanguage,
+        currentLocale: _locale,
       ),
     );
   }
@@ -147,11 +171,15 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
 class MemoryHomePage extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final bool isDarkMode;
+  final Function(Locale) onToggleLanguage;
+  final Locale currentLocale;
 
   const MemoryHomePage({
     super.key,
     required this.onToggleTheme,
     required this.isDarkMode,
+    required this.onToggleLanguage,
+    required this.currentLocale,
   });
 
   @override
@@ -164,6 +192,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   List<Category> _categories = [];
   String _selectedCategoryName = 'All';
   bool _isLoading = true;
+
+  // Helper to shorten translation calls
+  String tr(String key) => AppTranslations.get(widget.currentLocale.languageCode, key);
 
   @override
   void initState() {
@@ -251,9 +282,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Memory deleted'),
+        content: Text(tr('memory_deleted')),
         action: SnackBarAction(
-          label: 'Undo',
+          label: tr('undo'),
           onPressed: () {
             setState(() {
               _memories.insert(deletedIndex, deletedItem);
@@ -273,7 +304,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Add Category'),
+          title: Text(tr('add_category')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -281,9 +312,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                 controller: nameController,
                 autofocus: true,
                 maxLength: 20,
-                decoration: const InputDecoration(
-                  hintText: 'Category Name (e.g., Ideas)',
-                  labelText: 'Name',
+                decoration: InputDecoration(
+                  hintText: tr('category_name_hint'),
+                  labelText: tr('category_name_label'),
                   counterText: '',
                 ),
               ),
@@ -291,9 +322,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
               TextField(
                 controller: emojiController,
                 maxLength: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Emoji (e.g., 💡)',
-                  labelText: 'Emoji',
+                decoration: InputDecoration(
+                  hintText: tr('emoji_hint'),
+                  labelText: tr('emoji_label'),
                   counterText: '',
                 ),
               ),
@@ -302,14 +333,14 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(tr('cancel')),
             ),
             FilledButton(
               onPressed: () {
                 _addCategory(nameController.text, emojiController.text);
                 Navigator.pop(context);
               },
-              child: const Text('Add'),
+              child: Text(tr('add')),
             ),
           ],
         );
@@ -322,11 +353,11 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.info_outline),
-              SizedBox(width: 10),
-              Text('About LISTO'),
+              const Icon(Icons.info_outline),
+              const SizedBox(width: 10),
+              Text(tr('about_title')),
             ],
           ),
           content: SingleChildScrollView(
@@ -334,33 +365,33 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Created by Zaid Radaideh ',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                Text(
+                  tr('created_by'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'LISTO is a simple memory keeping app designed to help you organize your thoughts.',
+                  tr('app_description'),
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
-                const Text(
-                  'Privacy Policy & Terms',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  tr('privacy_terms'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'This application operates locally on your device. We do not currently collect, store, or share any personal data.\n\nNote: Future versions may include advertising services (e.g., Google AdMob) which might collect standard usage data.',
+                  tr('privacy_policy'),
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.outline),
                 ),
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
-                const Text(
-                  'Contact',
-                   style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  tr('contact'),
+                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 const Text('zaidradaideh.dev@gmail.com'),
@@ -371,7 +402,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Could not open link')),
+                          SnackBar(content: Text(tr('error_link'))),
                         );
                       }
                     }
@@ -412,7 +443,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              child: Text(tr('close')),
             ),
           ],
         );
@@ -458,7 +489,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        item == null ? 'New Memory' : 'Edit Memory',
+                        item == null ? tr('new_memory') : tr('edit_memory'),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -510,8 +541,8 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                     minLines: 3,
                     maxLength: 1000,
                     style: const TextStyle(fontSize: 16),
-                    decoration: const InputDecoration(
-                      hintText: 'What\'s on your mind?',
+                    decoration: InputDecoration(
+                      hintText: tr('memory_hint'),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -524,7 +555,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    child: const Text('Save Memory', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text(tr('save_memory'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -567,9 +598,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'LISTO',
-                      style: TextStyle(
+                    Text(
+                      tr('app_title'),
+                      style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
@@ -580,7 +611,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.dashboard_outlined),
-              title: const Text('All Memories'),
+              title: Text(tr('all_memories')),
               selected: _selectedCategoryName == 'All',
               onTap: () {
                 setState(() => _selectedCategoryName = 'All');
@@ -595,7 +626,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Text(
-                      'Categories',
+                      tr('categories'),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.secondary,
                         fontWeight: FontWeight.bold,
@@ -617,7 +648,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   )),
                   ListTile(
                     leading: const Icon(Icons.add),
-                    title: const Text('Add Category'),
+                    title: Text(tr('add_category')),
                     onTap: () {
                       Navigator.pop(context);
                       _showAddCategoryDialog();
@@ -625,7 +656,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   ),
                   ListTile(
                     leading: const Icon(Icons.info_outline),
-                    title: const Text('About'),
+                    title: Text(tr('about')),
                     onTap: () {
                       Navigator.pop(context);
                       _showAppAboutDialog();
@@ -635,8 +666,16 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
               ),
             ),
             const Divider(),
+            ListTile(
+              leading: const Icon(Icons.language),
+              title: Text(tr('language')),
+              trailing: Text(_getLanguageName(widget.currentLocale.languageCode), style: const TextStyle(fontWeight: FontWeight.bold)),
+              onTap: () {
+                _showLanguageDialog();
+              },
+            ),
             SwitchListTile(
-              title: const Text('Dark Mode'),
+              title: Text(tr('dark_mode')),
               secondary: Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
               value: widget.isDarkMode,
               onChanged: (val) => widget.onToggleTheme(),
@@ -659,7 +698,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        _selectedCategoryName == 'All' ? 'No memories yet' : 'No $_selectedCategoryName memories',
+                        _selectedCategoryName == 'All' 
+                          ? tr('no_memories') 
+                          : '${tr('no_cat_memories')} $_selectedCategoryName',
                         style: TextStyle(
                           fontSize: 18,
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
@@ -736,7 +777,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                       ),
                                       color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
-                                      tooltip: 'Delete',
+                                      tooltip: tr('delete'),
                                     ),
                                   ],
                                 ),
@@ -803,22 +844,62 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   }
 
   String _formatDate(DateTime date) {
-    // Simple helper to format date nicely
-    final now = DateTime.now();
-    final difference = now.difference(date);
+    return AppTranslations.getTimeAgo(widget.currentLocale.languageCode, date);
+  }
 
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        if (difference.inMinutes == 0) {
-           return 'Just now';
-        }
-        return '${difference.inMinutes}m ago';
-      }
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
+  String _getLanguageName(String code) {
+    switch (code) {
+      case 'ar': return 'العربية';
+      case 'fr': return 'Français';
+      case 'es': return 'Español';
+      case 'de': return 'Deutsch';
+      case 'en': 
+      default: return 'English';
     }
+  }
+
+  void _showLanguageDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                tr('language'),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildLanguageOption('English', 'en'),
+              _buildLanguageOption('العربية', 'ar'),
+              _buildLanguageOption('Français', 'fr'),
+              _buildLanguageOption('Español', 'es'),
+              _buildLanguageOption('Deutsch', 'de'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLanguageOption(String name, String code) {
+    final isSelected = widget.currentLocale.languageCode == code;
+    return ListTile(
+      title: Text(name),
+      trailing: isSelected ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+      onTap: () {
+        widget.onToggleLanguage(Locale(code));
+        Navigator.pop(context);
+        Navigator.pop(context); // Close drawer
+      },
+    );
   }
 }
