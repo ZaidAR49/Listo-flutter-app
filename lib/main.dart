@@ -6,13 +6,19 @@ import 'package:my_app/storage_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:my_app/app_translations.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:my_app/ad_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math';
 
-void main() {
+Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  AdService().initialize();
   runApp(const ZarMemoryApp());
 }
 
@@ -26,6 +32,7 @@ class ZarMemoryApp extends StatefulWidget {
 class _ZarMemoryAppState extends State<ZarMemoryApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Locale _locale = const Locale('en');
+  bool _showAds = true;
 
   void _toggleTheme() {
     setState(() {
@@ -36,6 +43,12 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
   void _changeLanguage(Locale locale) {
     setState(() {
       _locale = locale;
+    });
+  }
+
+  void _toggleAds(bool value) {
+    setState(() {
+      _showAds = value;
     });
   }
 
@@ -163,6 +176,8 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
         isDarkMode: _themeMode == ThemeMode.dark,
         onToggleLanguage: _changeLanguage,
         currentLocale: _locale,
+        showAds: _showAds,
+        onToggleAds: _toggleAds,
       ),
     );
   }
@@ -173,6 +188,8 @@ class MemoryHomePage extends StatefulWidget {
   final bool isDarkMode;
   final Function(Locale) onToggleLanguage;
   final Locale currentLocale;
+  final bool showAds;
+  final Function(bool) onToggleAds;
 
   const MemoryHomePage({
     super.key,
@@ -180,6 +197,8 @@ class MemoryHomePage extends StatefulWidget {
     required this.isDarkMode,
     required this.onToggleLanguage,
     required this.currentLocale,
+    required this.showAds,
+    required this.onToggleAds,
   });
 
   @override
@@ -192,15 +211,59 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   List<Category> _categories = [];
   String _selectedCategoryName = 'All';
   bool _isLoading = true;
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
 
   // Helper to shorten translation calls
   String tr(String key) => AppTranslations.get(widget.currentLocale.languageCode, key);
+
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadBannerAd();
   }
+
+  @override
+  void didUpdateWidget(MemoryHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showAds != oldWidget.showAds) {
+      if (widget.showAds) {
+        _loadBannerAd();
+      } else {
+        _disposeBannerAd();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeBannerAd();
+    super.dispose();
+  }
+
+  void _loadBannerAd() {
+    if (!widget.showAds) return; // Don't load if disabled
+    
+    _bannerAd = AdService().createBannerAd(
+      onAdLoaded: () {
+        if (mounted) {
+          setState(() {
+            _isBannerAdLoaded = true;
+          });
+        }
+      }
+    );
+    _bannerAd?.load();
+  }
+
+  void _disposeBannerAd() {
+    _bannerAd?.dispose();
+    _bannerAd = null;
+    _isBannerAdLoaded = false;
+  }
+
 
   Future<void> _loadData() async {
     final memories = await _storageService.loadMemories();
@@ -648,7 +711,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   )),
                   ListTile(
                     leading: const Icon(Icons.add),
-                    title: Text(tr('add_category')),
+                    title: Text(tr('Add Category')),
                     onTap: () {
                       Navigator.pop(context);
                       _showAddCategoryDialog();
@@ -679,6 +742,15 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
               secondary: Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
               value: widget.isDarkMode,
               onChanged: (val) => widget.onToggleTheme(),
+            ),
+            SwitchListTile(
+              title: const Text('Show Ads'),
+              secondary: const Icon(Icons.ad_units),
+              value: widget.showAds,
+              onChanged: (val) {
+                widget.onToggleAds(val);
+                Navigator.pop(context); // Close drawer to reflect changes
+              },
             ),
             const SizedBox(height: 16),
           ],
@@ -812,6 +884,13 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                     );
                   },
                 ),
+      bottomNavigationBar: (widget.showAds && _isBannerAdLoaded && _bannerAd != null)
+          ? SizedBox(
+              height: _bannerAd!.size.height.toDouble(),
+              width: _bannerAd!.size.width.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            )
+          : null,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showMemoryDialog(),
         child: const Icon(Icons.add),
