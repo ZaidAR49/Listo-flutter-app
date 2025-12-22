@@ -36,6 +36,12 @@ class AppTranslations {
       'hours': 'h',
       'days': 'd',
       'settings': 'Settings',
+      'overdue': 'Overdue',
+      'today': 'Today',
+      'days_left_prefix': '',
+      'days_left_suffix': ' days left',
+      'set_deadline': 'Set Deadline',
+      'copied': 'Copied to clipboard',
     },
     'ar': {
       'app_title': 'LISTO',
@@ -72,6 +78,13 @@ class AppTranslations {
       'minutes': 'د',
       'hours': 'س',
       'days': 'ي',
+      'settings': 'الإعدادات',
+      'overdue': 'متأخر',
+      'today': 'اليوم',
+      'days_left_prefix': 'باقي ',
+      'days_left_suffix': ' أيام',
+      'set_deadline': 'تحديد موعد نهائي',
+      'copied': 'تم النسخ إلى الحافظة',
     },
     'fr': {
       'app_title': 'LISTO',
@@ -108,6 +121,13 @@ class AppTranslations {
       'minutes': 'm',
       'hours': 'h',
       'days': 'j',
+      'settings': 'Paramètres',
+      'overdue': 'En retard',
+      'today': 'Aujourd\'hui',
+      'days_left_prefix': 'Reste ',
+      'days_left_suffix': ' jours',
+      'set_deadline': 'Définir une date limite',
+      'copied': 'Copié dans le presse-papiers',
     },
     'es': {
       'app_title': 'LISTO',
@@ -145,6 +165,12 @@ class AppTranslations {
       'hours': 'h',
       'days': 'd',
       'settings': 'Configuración',
+      'overdue': 'Vencido',
+      'today': 'Hoy',
+      'days_left_prefix': 'Quedan ',
+      'days_left_suffix': ' días',
+      'set_deadline': 'Establecer fecha límite',
+      'copied': 'Copiado al portapapeles',
     },
     'de': {
       'app_title': 'LISTO',
@@ -181,11 +207,27 @@ class AppTranslations {
       'minutes': 'm',
       'hours': 'std',
       'days': 't',
+      'settings': 'Einstellungen',
+      'overdue': 'Überfällig',
+      'today': 'Heute',
+      'days_left_prefix': 'Noch ',
+      'days_left_suffix': ' Tage',
+      'set_deadline': 'Frist setzen',
+      'copied': 'In die Zwischenablage kopiert',
     },
   };
 
   static String get(String code, String key) {
     return _localizedValues[code]?[key] ?? key;
+  }
+  
+  static String getDaysRemaining(String code, int days) {
+    if (days < 0) return get(code, 'overdue');
+    if (days == 0) return get(code, 'today');
+    
+    final prefix = get(code, 'days_left_prefix');
+    final suffix = get(code, 'days_left_suffix');
+    return '$prefix$days$suffix';
   }
 
   static String getTimeAgo(String code, DateTime date) {

@@ -32,12 +32,14 @@ class MemoryItem {
   String content;
   DateTime timestamp;
   String category;
+  DateTime? deadline; // New field
 
   MemoryItem({
     required this.id,
     required this.content,
     required this.timestamp,
     this.category = 'Custom',
+    this.deadline,
   });
 
   // Convert a MemoryItem to a Map (for JSON serialization)
@@ -47,6 +49,7 @@ class MemoryItem {
       'content': content,
       'timestamp': timestamp.toIso8601String(),
       'category': category,
+      'deadline': deadline?.toIso8601String(), // Serialize deadline
     };
   }
 
@@ -57,6 +60,7 @@ class MemoryItem {
       content: json['content'],
       timestamp: DateTime.parse(json['timestamp']),
       category: json['category'] ?? 'Custom',
+      deadline: json['deadline'] != null ? DateTime.parse(json['deadline']) : null, // Deserialize deadline
     );
   }
 }

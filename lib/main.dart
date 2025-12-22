@@ -12,6 +12,63 @@ import 'package:my_app/settings_page.dart';
 import 'package:my_app/about_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math';
+import 'package:my_app/notification_service.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:linkify/linkify.dart';
+
+// Custom Phone Number Linkifier
+final _phoneRegex = RegExp(r'\b(?:\d[\d\-\(\) ]{4,}\d)\b', multiLine: true);
+
+class PhoneNumberLinkifier extends Linkifier {
+  const PhoneNumberLinkifier();
+
+  @override
+  List<LinkifyElement> parse(List<LinkifyElement> elements, LinkifyOptions options) {
+    final list = <LinkifyElement>[];
+
+    for (var element in elements) {
+      if (element is TextElement) {
+        var text = element.text;
+        var match = _phoneRegex.firstMatch(text);
+
+        if (match == null) {
+          list.add(element);
+        } else {
+          // Iterate through matches
+          var currentText = text;
+          var matches = _phoneRegex.allMatches(currentText);
+
+          int lastMatchEnd = 0;
+          for (var match in matches) {
+            // Add pre-match text
+            if (match.start > lastMatchEnd) {
+              list.add(TextElement(currentText.substring(lastMatchEnd, match.start)));
+            }
+            
+            // Add phone number link
+            final phoneNumber = match.group(0)!;
+            list.add(LinkableElement(
+              phoneNumber,
+              'tel:${phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '')}',
+              phoneNumber,
+            ));
+            
+            lastMatchEnd = match.end;
+          }
+          
+          // Add remaining text
+          if (lastMatchEnd < currentText.length) {
+            list.add(TextElement(currentText.substring(lastMatchEnd)));
+          }
+        }
+      } else {
+        list.add(element);
+      }
+    }
+    return list;
+  }
+}
 
 // Toggle this to TRUE to allow users to turn off ads.
 // Set to FALSE to make ads mandatory (hides the toggle).
@@ -24,6 +81,8 @@ Future<void> main() async {
   ));
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  await NotificationService().initialize();
+  await NotificationService().requestPermissions();
   AdService().initialize();
   runApp(const ZarMemoryApp());
 }
@@ -221,6 +280,10 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   bool _isLoading = true;
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
+  
+  // Selection Mode State
+  bool _isSelectionMode = false;
+  final Set<String> _selectedMemoryIds = {};
 
   // Helper to shorten translation calls
   String tr(String key) => AppTranslations.get(widget.currentLocale.languageCode, key);
@@ -325,7 +388,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
     _saveCategories();
   }
 
-  void _addOrUpdateMemory(String content, String categoryName, {String? id}) {
+  void _addOrUpdateMemory(String content, String categoryName, {String? id, DateTime? deadline}) {
     if (content.trim().isEmpty) return;
 
     if (id == null) {
@@ -334,21 +397,48 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
         content: content.trim(),
         timestamp: DateTime.now(),
         category: categoryName,
+        deadline: deadline,
       );
       setState(() {
         _memories.insert(0, newItem);
       });
+      
+      if (deadline != null) {
+         _scheduleDeadlineNotification(newItem);
+      }
     } else {
       final index = _memories.indexWhere((item) => item.id == id);
       if (index != -1) {
+        // Cancel previous notification if exists
+        NotificationService().cancelNotification(_memories[index].id.hashCode);
+
         setState(() {
           _memories[index].content = content.trim();
           _memories[index].timestamp = DateTime.now();
           _memories[index].category = categoryName;
+          _memories[index].deadline = deadline;
         });
+
+        if (deadline != null) {
+          _scheduleDeadlineNotification(_memories[index]);
+        }
       }
     }
     _saveMemories();
+  }
+
+  void _scheduleDeadlineNotification(MemoryItem item) {
+    if (item.deadline == null) return;
+    
+    final scheduledDate = item.deadline!.subtract(const Duration(days: 1));
+    if (scheduledDate.isAfter(DateTime.now())) {
+      NotificationService().scheduleNotification(
+        item.id.hashCode,
+        'Deadline Approaching: ${item.category}',
+        'Reminder: ${item.content} is due tomorrow!',
+        scheduledDate,
+      );
+    }
   }
 
   void _deleteMemory(String id) {
@@ -358,6 +448,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
     setState(() {
       _memories.removeWhere((item) => item.id == id);
     });
+    NotificationService().cancelNotification(id.hashCode);
     _saveMemories();
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -368,6 +459,38 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
           onPressed: () {
             setState(() {
               _memories.insert(deletedIndex, deletedItem);
+            });
+            _saveMemories();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _deleteSelectedMemories() {
+    final List<MemoryItem> deletedItems = [];
+    for (var id in _selectedMemoryIds) {
+      final item = _memories.firstWhere((m) => m.id == id);
+      deletedItems.add(item);
+      NotificationService().cancelNotification(id.hashCode);
+    }
+
+    setState(() {
+      _memories.removeWhere((m) => _selectedMemoryIds.contains(m.id));
+      _isSelectionMode = false;
+      _selectedMemoryIds.clear();
+    });
+    _saveMemories();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${deletedItems.length} ${tr('memory_deleted')}'),
+        action: SnackBarAction(
+          label: tr('undo'),
+          onPressed: () {
+            setState(() {
+              _memories.addAll(deletedItems);
+              _memories.sort((a, b) => b.timestamp.compareTo(a.timestamp));
             });
             _saveMemories();
           },
@@ -543,6 +666,8 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
       selectedCategoryName = _categories.first.name;
     }
 
+    DateTime? selectedDeadline = item?.deadline;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -561,10 +686,11 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                 left: 24,
                 right: 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              child: SingleChildScrollView( // Wrap in SingleChildScrollView to fix overflow
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                    Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -625,10 +751,61 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       hintText: tr('memory_hint'),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDeadline ?? DateTime.now().add(const Duration(days: 7)),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setModalState(() {
+                                selectedDeadline = picked;
+                              });
+                            }
+                          },
+                          icon: Icon(Icons.calendar_today, size: 18, color: selectedDeadline != null ? Theme.of(context).colorScheme.primary : null),
+                          label: Text(
+                            selectedDeadline == null 
+                                ? tr('set_deadline') 
+                                : DateFormat('MMM d, y', widget.currentLocale.languageCode).format(selectedDeadline!),
+                            style: TextStyle(
+                               color: selectedDeadline != null ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface 
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: selectedDeadline != null 
+                                ? BorderSide(color: Theme.of(context).colorScheme.primary) 
+                                : null,
+                          ),
+                        ),
+                      ),
+                      if (selectedDeadline != null)
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                             setModalState(() {
+                               selectedDeadline = null;
+                             });
+                          },
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () {
-                      _addOrUpdateMemory(textController.text, selectedCategoryName, id: item?.id);
+                      _addOrUpdateMemory(
+                        textController.text, 
+                        selectedCategoryName, 
+                        id: item?.id,
+                        deadline: selectedDeadline, // Pass the deadline
+                      );
                       Navigator.pop(context);
                     },
                     style: FilledButton.styleFrom(
@@ -639,6 +816,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   ),
                 ],
               ),
+            ),
             );
           },
         );
@@ -735,7 +913,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   )),
                   ListTile(
                     leading: const Icon(Icons.add),
-                    title: Text(tr('Add Category')),
+                    title: Text(tr('add_category')),
                     onTap: () {
                       Navigator.pop(context);
                       _showAddCategoryDialog();
@@ -834,9 +1012,36 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                         _deleteMemory(memory.id);
                       },
                       child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: _selectedMemoryIds.contains(memory.id) 
+                              ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
+                              : BorderSide.none,
+                        ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          onTap: () => _showMemoryDialog(item: memory),
+                          onTap: () {
+                             if (_isSelectionMode) {
+                               setState(() {
+                                 if (_selectedMemoryIds.contains(memory.id)) {
+                                   _selectedMemoryIds.remove(memory.id);
+                                   if (_selectedMemoryIds.isEmpty) {
+                                     _isSelectionMode = false;
+                                   }
+                                 } else {
+                                   _selectedMemoryIds.add(memory.id);
+                                 }
+                               });
+                             } else {
+                               _showMemoryDialog(item: memory);
+                             }
+                          },
+                          onLongPress: () {
+                            setState(() {
+                              _isSelectionMode = true;
+                              _selectedMemoryIds.add(memory.id);
+                            });
+                          },
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
@@ -884,18 +1089,131 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
-                                  memory.content,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    height: 1.5,
-                                  ),
-                                  maxLines: 4,
-                                  overflow: TextOverflow.ellipsis,
+                                Builder(
+                                  builder: (context) {
+                                    final elements = linkify(
+                                      memory.content,
+                                      options: const LinkifyOptions(humanize: false),
+                                      linkifiers: const [
+                                        EmailLinkifier(), 
+                                        UrlLinkifier(),
+                                        PhoneNumberLinkifier(),
+                                      ],
+                                    );
+                                    
+                                    return Text.rich(
+                                      TextSpan(
+                                        children: elements.map<InlineSpan>((element) {
+                                          if (element is LinkableElement) {
+                                            return WidgetSpan(
+                                              alignment: PlaceholderAlignment.baseline,
+                                              baseline: TextBaseline.alphabetic,
+                                              child: GestureDetector(
+                                                onTap: () async {
+                                                   if (!await launchUrl(Uri.parse(element.url), mode: LaunchMode.externalApplication)) {
+                                                      if (context.mounted) {
+                                                         ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(content: Text(tr('error_link'))),
+                                                          );
+                                                      }
+                                                    }
+                                                },
+                                                onLongPress: () {
+                                                  Clipboard.setData(ClipboardData(text: element.text));
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(content: Text(tr('copied'))),
+                                                    );
+                                                  }
+                                                },
+                                                child: Text(
+                                                  element.text,
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    height: 1.5,
+                                                    color: Theme.of(context).colorScheme.primary,
+                                                    decoration: TextDecoration.underline,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            return TextSpan(
+                                              text: element.text,
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                height: 1.5,
+                                                color: Theme.of(context).colorScheme.onSurface,
+                                              ),
+                                            );
+                                          }
+                                        }).toList(),
+                                      ),
+                                    );
+                                  },
                                 ),
+                                const SizedBox(height: 12),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
+                                    if (memory.deadline != null)
+                                      Builder(
+                                        builder: (context) {
+                                          final now = DateTime.now();
+                                          final today = DateTime(now.year, now.month, now.day);
+                                          final deadlineDate = DateTime(memory.deadline!.year, memory.deadline!.month, memory.deadline!.day);
+                                          final daysUntil = deadlineDate.difference(today).inDays;
+
+                                          Color badgeColor;
+                                          Color textColor;
+                                          String text;
+
+                                          if (daysUntil < 0) {
+                                            badgeColor = Theme.of(context).colorScheme.errorContainer;
+                                            textColor = Theme.of(context).colorScheme.error;
+                                          } else if (daysUntil == 0) {
+                                             badgeColor = Colors.orange.withOpacity(0.2);
+                                             textColor = Colors.orange.shade900;
+                                          } else if (daysUntil < 3) {
+                                            // Red: < 3 days
+                                            badgeColor = Theme.of(context).colorScheme.errorContainer;
+                                            textColor = Theme.of(context).colorScheme.error;
+                                          } else if (daysUntil <= 5) {
+                                            // Yellow: 3 to 5 days
+                                             badgeColor = Colors.amber.withOpacity(0.2);
+                                             textColor = Colors.amber.shade900;
+                                          } else {
+                                            // Green: > 5 days
+                                            badgeColor = Colors.green.withOpacity(0.2);
+                                            textColor = Colors.green.shade800;
+                                          }
+
+                                          text = AppTranslations.getDaysRemaining(widget.currentLocale.languageCode, daysUntil);
+
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: badgeColor,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.access_time, size: 12, color: textColor),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  text,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: textColor,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                      ),
                                     Text(
                                       _formatDate(memory.timestamp),
                                       style: TextStyle(
@@ -915,10 +1233,18 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   },
                 ),
 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showMemoryDialog(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _isSelectionMode
+        ? FloatingActionButton.extended(
+            onPressed: _deleteSelectedMemories,
+            icon: const Icon(Icons.delete),
+            label: Text(tr('delete')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            foregroundColor: Theme.of(context).colorScheme.onError,
+          )
+        : FloatingActionButton(
+            onPressed: () => _showMemoryDialog(),
+            child: const Icon(Icons.add),
+          ),
     );
   }
 
