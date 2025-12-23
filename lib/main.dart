@@ -19,6 +19,8 @@ import 'package:intl/intl.dart';
 import 'package:linkify/linkify.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:async';
+import 'package:my_app/test_mode_page.dart';
 
 // Custom Phone Number Linkifier
 final _phoneRegex = RegExp(r'\b(?:\d[\d\-\(\) ]{4,}\d)\b', multiLine: true);
@@ -436,6 +438,10 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   // Selection Mode State
   bool _isSelectionMode = false;
   final Set<String> _selectedMemoryIds = {};
+
+  // Secret Test Mode
+  int _logoTapCount = 0;
+  Timer? _logoTapResetTimer;
 
   // Helper to shorten translation calls
   String tr(String key) => AppTranslations.get(widget.currentLocale.languageCode, key);
@@ -877,19 +883,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                 const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
                     // Logic for Submit shortcut
                     if (textController.text.trim().length < 3) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              tr('min_char_error'),
-                              style: TextStyle(color: Theme.of(context).colorScheme.onError),
-                            ),
-                            backgroundColor: Theme.of(context).colorScheme.error,
-                            behavior: SnackBarBehavior.floating,
-                            width: 280,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                        return;
+                       return;
                     }
                     Navigator.pop(context);
                     Future.microtask(() {
@@ -1084,18 +1078,6 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                           // Handle Enter key - submit if single line
                           if (textController.text.split('\n').length == 1) {
                             if (textController.text.trim().length < 3) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    tr('min_char_error'),
-                                    style: TextStyle(color: Theme.of(context).colorScheme.onError),
-                                  ),
-                                  backgroundColor: Theme.of(context).colorScheme.error,
-                                  behavior: SnackBarBehavior.floating,
-                                  width: 280,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
                               return;
                             }
                             Navigator.pop(context);
@@ -1162,18 +1144,6 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   FilledButton(
                     onPressed: () {
                       if (textController.text.trim().length < 3) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              tr('min_char_error'),
-                              style: TextStyle(color: Theme.of(context).colorScheme.onError),
-                            ),
-                            backgroundColor: Theme.of(context).colorScheme.error,
-                            behavior: SnackBarBehavior.floating,
-                            width: 280,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
                         return;
                       }
                       Navigator.pop(context);
@@ -1202,6 +1172,66 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
           },
         );
       },
+    );
+  }
+
+  void _handleLogoTap() {
+    _logoTapResetTimer?.cancel();
+    _logoTapCount++;
+
+    if (_logoTapCount >= 3) {
+      _logoTapCount = 0;
+      _showSecretPasswordDialog();
+    } else {
+      // Reset counter if no tap for 2 seconds
+      _logoTapResetTimer = Timer(const Duration(seconds: 2), () {
+        _logoTapCount = 0;
+      });
+    }
+  }
+
+  void _showSecretPasswordDialog() {
+    final TextEditingController passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter Secret Password'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            hintText: 'Password',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final storedToken = dotenv.env['TESTTOKEN'];
+              if (storedToken != null && passwordController.text == storedToken) {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TestModePage()),
+                );
+              } else {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Invalid password'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Enter'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1235,12 +1265,15 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   )
                 : null,
       appBar: AppBar(
-        title: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Image.asset(
-            'assets/logo.png',
-            height: 40,
-            fit: BoxFit.contain,
+        title: GestureDetector(
+          onTap: _handleLogoTap,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/logo.png',
+              height: 40,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
         centerTitle: true,

@@ -239,23 +239,6 @@ class SettingsPage extends StatelessWidget {
              ),
              const SizedBox(height: 20),
           ],
-          const Divider(),
-           ListTile(
-            leading: const Icon(Icons.notifications_active),
-            title: const Text('Test Notification'),
-            subtitle: const Text('Click to verify notifications work'),
-            onTap: () async {
-              await NotificationService().showImmediateNotification(
-                'LISTO Test', 
-                'This is a test notification from LISTO!',
-              );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Notification Sent! Check your tray.')),
-                );
-              }
-            },
-           ),
            const SizedBox(height: 20),
         ],
       ),
