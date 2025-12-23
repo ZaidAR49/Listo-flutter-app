@@ -33,6 +33,7 @@ class MemoryItem {
   DateTime timestamp;
   String category;
   DateTime? deadline; // New field
+  List<String>? imagePaths; // New field for multiple images
 
   MemoryItem({
     required this.id,
@@ -40,6 +41,7 @@ class MemoryItem {
     required this.timestamp,
     this.category = 'Custom',
     this.deadline,
+    this.imagePaths,
   });
 
   // Convert a MemoryItem to a Map (for JSON serialization)
@@ -50,6 +52,7 @@ class MemoryItem {
       'timestamp': timestamp.toIso8601String(),
       'category': category,
       'deadline': deadline?.toIso8601String(), // Serialize deadline
+      'imagePaths': imagePaths,
     };
   }
 
@@ -61,6 +64,7 @@ class MemoryItem {
       timestamp: DateTime.parse(json['timestamp']),
       category: json['category'] ?? 'Custom',
       deadline: json['deadline'] != null ? DateTime.parse(json['deadline']) : null, // Deserialize deadline
+      imagePaths: json['imagePaths'] != null ? List<String>.from(json['imagePaths']) : null,
     );
   }
 }

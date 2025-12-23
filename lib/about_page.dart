@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:my_app/app_translations.dart';
-
+//
 class AboutPage extends StatelessWidget {
   final Locale currentLocale;
 
@@ -22,10 +22,13 @@ class AboutPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Image.asset(
-                'assets/logo.png',
-                height: 100,
-                fit: BoxFit.contain,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 100,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             const SizedBox(height: 16),
