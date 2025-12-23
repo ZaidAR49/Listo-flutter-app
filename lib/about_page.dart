@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:my_app/app_translations.dart';
+import 'package:my_app/privacy_policy_page.dart';
 //
 class AboutPage extends StatelessWidget {
   final Locale currentLocale;
@@ -59,9 +60,27 @@ class AboutPage extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
-            Text(
-              tr('privacy_policy'),
-              style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.outline, height: 1.4),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (context) => PrivacyPolicyPage(currentLocale: currentLocale))
+                );
+              },
+              child: Row(
+                children: [
+                  Text(
+                    tr('view_full_policy'),
+                    style: TextStyle(
+                      fontSize: 14, 
+                      color: Theme.of(context).colorScheme.primary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: Theme.of(context).colorScheme.primary),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             const Divider(),
