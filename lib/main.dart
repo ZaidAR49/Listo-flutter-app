@@ -84,7 +84,7 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
   await NotificationService().initialize();
   await NotificationService().requestPermissions();
-  // AdService().initialize();
+  AdService().initialize();
   runApp(const ZarMemoryApp());
 }
 
@@ -484,23 +484,23 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   void initState() {
     super.initState();
     _loadData();
-    // _loadBannerAd();
+    _loadBannerAd();
   }
 
   @override
   void didUpdateWidget(MemoryHomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // if (widget.showAds != oldWidget.showAds) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     if (mounted) {
-    //       if (widget.showAds) {
-    //         _loadBannerAd();
-    //       } else {
-    //         _disposeBannerAd();
-    //       }
-    //     }
-    //   });
-    // }
+    if (widget.showAds != oldWidget.showAds) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          if (widget.showAds) {
+            _loadBannerAd();
+          } else {
+            _disposeBannerAd();
+          }
+        }
+      });
+    }
   }
 
   @override
@@ -509,7 +509,6 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
     super.dispose();
   }
 
-  // ignore: unused_element
   void _loadBannerAd() {
     if (!widget.showAds) {
       return; // Don't load if disabled
@@ -1159,13 +1158,13 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
     return Focus(
       autofocus: true,
       child: Scaffold(
-            // bottomNavigationBar: (_isBannerAdLoaded && widget.showAds && _bannerAd != null)
-            //     ? SizedBox(
-            //         height: _bannerAd!.size.height.toDouble(),
-            //         width: _bannerAd!.size.width.toDouble(),
-            //         child: AdWidget(ad: _bannerAd!),
-            //       )
-            //     : null,
+            bottomNavigationBar: (_isBannerAdLoaded && widget.showAds && _bannerAd != null)
+                ? SizedBox(
+                    height: _bannerAd!.size.height.toDouble(),
+                    width: _bannerAd!.size.width.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  )
+                : null,
       appBar: AppBar(
         title: ClipRRect(
           borderRadius: BorderRadius.circular(12),
