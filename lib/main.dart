@@ -1218,6 +1218,11 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
             _showMemoryDialog();
           }
         },
+        const SingleActivator(LogicalKeyboardKey.delete): () {
+          if (_isSelectionMode && _selectedMemoryIds.isNotEmpty) {
+            _deleteSelectedMemories();
+          }
+        },
       },
       child: Focus(
         autofocus: true,

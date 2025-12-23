@@ -74,6 +74,24 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
+
+  Future<void> showImmediateNotification(String title, String body) async {
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'test_channel',
+          'Test Notifications',
+          channelDescription: 'Channel for testing notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
   
   Future<void> cancelNotification(int id) async {
     await flutterLocalNotificationsPlugin.cancel(id);
