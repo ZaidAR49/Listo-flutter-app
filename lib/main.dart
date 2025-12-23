@@ -863,8 +863,39 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
         final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: keyboardHeight),
+            return CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+                    // Logic for Submit shortcut
+                    if (textController.text.trim().length < 3) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              tr('min_char_error'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: Colors.red,
+                            behavior: SnackBarBehavior.floating,
+                            width: 280,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                    }
+                    Navigator.pop(context);
+                    Future.microtask(() {
+                      _addOrUpdateMemory(
+                        textController.text, 
+                        selectedCategoryName, 
+                        id: item?.id,
+                        deadline: selectedDeadline,
+                        imagePaths: selectedImagePaths,
+                      );
+                    });
+                },
+              },
+              child: Padding(
+                padding: EdgeInsets.only(bottom: keyboardHeight),
               child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
@@ -1154,7 +1185,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
               ),
                 ),
               ),
-            );
+            ));
           },
         );
       },
@@ -1167,9 +1198,17 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
         ? _memories
         : _memories.where((m) => m.category == _selectedCategoryName).toList();
 
-    return Focus(
-      autofocus: true,
-      child: Scaffold(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
+          if (!_isSelectionMode) {
+            _showMemoryDialog();
+          }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
             bottomNavigationBar: (_isBannerAdLoaded && widget.showAds && _bannerAd != null)
                 ? SizedBox(
                     height: _bannerAd!.size.height.toDouble(),
@@ -1534,7 +1573,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                                 if (memory.imagePaths != null && memory.imagePaths!.isNotEmpty) ...[
                                   const SizedBox(height: 12),
                                   SizedBox(
-                                    height: Platform.isWindows ? 200 : null,
+                                    height: Platform.isWindows ? 150 : null,
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
                                       child: Row(
@@ -1658,7 +1697,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
             child: const Icon(Icons.add),
           ),
       ),
-    );
+    ));
   }
 
   String _getEmojiForCategory(String categoryName) {
