@@ -10,6 +10,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:my_app/ad_service.dart';
 import 'package:my_app/settings_page.dart';
 import 'package:my_app/about_page.dart';
+import 'package:my_app/how_to_use_page.dart';
 import 'package:my_app/error_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math';
@@ -85,7 +86,13 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
   await NotificationService().initialize();
   await NotificationService().requestPermissions();
-  AdService().initialize();
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      await AdService().initialize();
+    } catch (e) {
+      debugPrint('Error initializing ads: $e');
+    }
+  }
   ErrorWidget.builder = (FlutterErrorDetails details) => ErrorPage(details: details);
   runApp(const ZarMemoryApp());
 }
@@ -516,9 +523,7 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
   }
 
   void _loadBannerAd() {
-    if (!widget.showAds) {
-      return; // Don't load if disabled
-    }
+    if (!widget.showAds || (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
     
     _bannerAd = AdService().createBannerAd(
       onAdLoaded: () {
@@ -660,12 +665,16 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
     
     final scheduledDate = item.deadline!.subtract(const Duration(days: 1));
     if (scheduledDate.isAfter(DateTime.now())) {
-      NotificationService().scheduleNotification(
-        item.id.hashCode,
-        'Deadline Approaching: ${item.category}',
-        'Reminder: ${item.content} is due tomorrow!',
-        scheduledDate,
-      );
+      try {
+        NotificationService().scheduleNotification(
+          item.id.hashCode,
+          'Deadline Approaching: ${item.category}',
+          'Reminder: ${item.content} is due tomorrow!',
+          scheduledDate,
+        );
+      } catch (e) {
+        debugPrint('Failed to schedule notification: $e');
+      }
     }
   }
 
@@ -872,9 +881,9 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                           SnackBar(
                             content: Text(
                               tr('min_char_error'),
-                              style: const TextStyle(color: Colors.white),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onError),
                             ),
-                            backgroundColor: Colors.red,
+                            backgroundColor: Theme.of(context).colorScheme.error,
                             behavior: SnackBarBehavior.floating,
                             width: 280,
                             duration: const Duration(seconds: 2),
@@ -893,12 +902,15 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       );
                     });
                 },
+                const SingleActivator(LogicalKeyboardKey.escape): () {
+                  Navigator.pop(context);
+                },
               },
               child: Padding(
                 padding: EdgeInsets.only(bottom: keyboardHeight),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 padding: const EdgeInsets.only(
@@ -1183,9 +1195,10 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                   ),
                 ],
               ),
-                ),
-              ),
-            ));
+            ),
+          ),
+        ),
+      );
           },
         );
       },
@@ -1338,6 +1351,21 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       onUpdateCustomTheme: widget.onUpdateCustomTheme,
                       currentFontFamily: widget.currentFontFamily,
                       onUpdateFontFamily: widget.onUpdateFontFamily,
+                    ),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline),
+              title: Text(tr('how_to_use')),
+              onTap: () {
+                 Navigator.pop(context);
+                 Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HowToUsePage(
+                      currentLocale: widget.currentLocale,
                     ),
                   ),
                 );
@@ -1573,19 +1601,20 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                                 if (memory.imagePaths != null && memory.imagePaths!.isNotEmpty) ...[
                                   const SizedBox(height: 12),
                                   SizedBox(
-                                    height: Platform.isWindows ? 150 : null,
+                                    height: Platform.isWindows ? 100 : null,
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
                                       child: Row(
-                                        children: memory.imagePaths!.map((path) => Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                                            child: GestureDetector(
-                                              onTap: () => _showImageLightbox(path),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: AspectRatio(
-                                                  aspectRatio: memory.imagePaths!.length == 1 ? (Platform.isWindows ? 2.3 : 16/9) : 1,
+                                        children: memory.imagePaths!.map((path) {
+                                          if (Platform.isWindows) {
+                                            return Container(
+                                              width: 100,
+                                              height: 100,
+                                              margin: const EdgeInsets.only(right: 8),
+                                              child: GestureDetector(
+                                                onTap: () => _showImageLightbox(path),
+                                                child: ClipRRect(
+                                                  borderRadius: BorderRadius.circular(8),
                                                   child: Image.file(
                                                     File(path),
                                                     fit: BoxFit.cover,
@@ -1596,9 +1625,32 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                        )).toList(),
+                                            );
+                                          } else {
+                                            return Expanded(
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                                child: GestureDetector(
+                                                  onTap: () => _showImageLightbox(path),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: AspectRatio(
+                                                      aspectRatio: memory.imagePaths!.length == 1 ? 16/9 : 1,
+                                                      child: Image.file(
+                                                        File(path),
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (context, error, stackTrace) => Container(
+                                                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                                          child: const Icon(Icons.broken_image_outlined),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }).toList(),
                                       ),
                                     ),
                                   ),
