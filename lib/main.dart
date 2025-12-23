@@ -10,6 +10,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:my_app/ad_service.dart';
 import 'package:my_app/settings_page.dart';
 import 'package:my_app/about_page.dart';
+import 'package:my_app/error_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:math';
 import 'package:my_app/notification_service.dart';
@@ -85,6 +86,7 @@ Future<void> main() async {
   await NotificationService().initialize();
   await NotificationService().requestPermissions();
   AdService().initialize();
+  ErrorWidget.builder = (FlutterErrorDetails details) => ErrorPage(details: details);
   runApp(const ZarMemoryApp());
 }
 
@@ -177,6 +179,9 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
   }
 
   void _updateCustomTheme(Color? bg, Color? accent) async {
+     // Check if background color specifically changed
+     final bool bgChanged = bg != _customBackgroundColor;
+
      setState(() {
        _customBackgroundColor = bg;
        _customAccentColor = accent;
@@ -192,7 +197,8 @@ class _ZarMemoryAppState extends State<ZarMemoryApp> {
      // Update theme mode after state update and storage operations
      WidgetsBinding.instance.addPostFrameCallback((_) {
        if (mounted) {
-         if (bg != null) {
+         // Only switch to Light mode if background color was specifically changed to a new non-null value
+         if (bgChanged && bg != null) {
            _updateThemeMode(ThemeMode.light);
          } else if (bg == null && accent == null) {
            // Reset to system theme if fully cleared
@@ -1037,7 +1043,10 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                             if (textController.text.trim().length < 3) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(tr('min_char_error')),
+                                  content: Text(
+                                    tr('min_char_error'),
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onError),
+                                  ),
                                   backgroundColor: Theme.of(context).colorScheme.error,
                                   behavior: SnackBarBehavior.floating,
                                   width: 280,
@@ -1112,7 +1121,10 @@ class _MemoryHomePageState extends State<MemoryHomePage> {
                       if (textController.text.trim().length < 3) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(tr('min_char_error')),
+                            content: Text(
+                              tr('min_char_error'),
+                              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+                            ),
                             backgroundColor: Theme.of(context).colorScheme.error,
                             behavior: SnackBarBehavior.floating,
                             width: 280,
